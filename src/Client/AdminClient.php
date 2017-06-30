@@ -2,40 +2,67 @@
 
 namespace Inkl\PlentyAdmin\Client;
 
+use Curl\Curl;
+use Swap\Exception\Exception;
+
 class AdminClient
 {
 
+	/** @var Curl */
+	private $curl;
+	private $cookieFile;
+	private $plentyUrl;
 
-	public function __construct($adminUrl, $username, $password)
+	public function __construct($plentyUrl)
 	{
+		$this->plentyUrl = $plentyUrl;
 
-		$tmpfname = tempnam(sys_get_temp_dir(), 'COOKIE');
+		$this->curl = new Curl();
+		$this->curl->setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Ubuntu Chromium/32.0.1700.107 Chrome/32.0.1700.107 Safari/537.36');
+		$this->curl->setOpt(CURLOPT_RETURNTRANSFER, true);
+		$this->curl->setOpt(CURLOPT_COOKIESESSION, true);
+		$this->curl->setOpt(CURLOPT_COOKIEJAR, 'cookie');
+	}
 
-		$ch = curl_init();
-		curl_setopt($ch, CURLOPT_URL, $adminUrl);
-		curl_setopt($ch, CURLOPT_USERAGENT,'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Ubuntu Chromium/32.0.1700.107 Chrome/32.0.1700.107 Safari/537.36');
-		curl_setopt($ch, CURLOPT_POST, true);
-		curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query(['request' => '{"requests":[{"_dataName":"PlentyMarketsLogin", "_moduleName":"user/login", "_searchParams":{"username":"Magentoapi2", "password":"Magentoapi2789", "isGWT":true}, "_writeParams":{}, "_validateParams":{}, "_commandStack":[{"type":"read", "command":"read"}], "_dataArray":{}, "_dataList":{}}], "meta":{"token":""}}']));
-		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-		curl_setopt($ch, CURLOPT_COOKIESESSION, true);
-		curl_setopt($ch, CURLOPT_COOKIEJAR, 'cookie-name');  //could be empty, but cause problems on some hosts
-		curl_setopt($ch, CURLOPT_COOKIEFILE, $tmpfname);  //could be empty, but cause problems on some hosts
-		$answer = curl_exec($ch);
+	public function login($username, $password)
+	{
+		$this->curl->setOpt(CURLOPT_COOKIEFILE, $this->cookieFile);
+		$response = $this->curl->post(sprintf('%sapi/ui.php', $this->plentyUrl), [
+			'request' => sprintf('{"requests":[{"_dataName":"PlentyMarketsLogin", "_moduleName":"user/login", "_searchParams":{"username":"%s", "password":"%s", "isGWT":true}, "_writeParams":{}, "_validateParams":{}, "_commandStack":[{"type":"read", "command":"read"}], "_dataArray":{}, "_dataList":{}}], "meta":{"token":""}}', $username, $password)
+		]);
 
-		if (curl_error($ch)) {
-			echo curl_error($ch);
+		if (!preg_match('/Set-Cookie: SID_PLENTY_ADMIN/is', implode('', $response->response_headers)))
+		{
+			throw new Exception('unable to login');
+		}
+	}
+
+	public function get($call, $params = [])
+	{
+		return $this->curl->get(sprintf('%s%s', $this->plentyUrl, $call), $params);
+	}
+
+	/**
+	 * @return string
+	 */
+	public function getCookieFile()
+	{
+		if (!$this->cookieFile)
+		{
+			return tempnam(sys_get_temp_dir(), 'COOKIE');
 		}
 
-		curl_setopt($ch, CURLOPT_URL, 'https://www.hofstein.de/plenty/admin/gui_call.php?Object=mod_export@GuiDynamicFieldExportView2&Params[gui]=AjaxExportData&gwt_tab_id=-1&presenter_id=&action=ExportDataFormat&formatDynamicUserName=Magento_DE_Item&offset=0&rowCount=6000');
-		curl_setopt($ch, CURLOPT_POST, false);
-		curl_setopt($ch, CURLOPT_POSTFIELDS, "");
-		$answer = curl_exec($ch);
-		print_r($answer);
+		return $this->cookieFile;
+	}
 
-		if (curl_error($ch)) {
-			echo curl_error($ch);
-		}
-
+	/**
+	 * @param string $cookieFile
+	 * @return $this
+	 */
+	public function setCookieFile($cookieFile)
+	{
+		$this->cookieFile = $cookieFile;
+		return $this;
 	}
 
 }

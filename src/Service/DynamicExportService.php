@@ -1,54 +1,62 @@
 <?php
 
-namespace Inkl\PlentyApi\Service;
+namespace Inkl\PlentyAdmin\Service;
 
-use Inkl\Csv\Service\StringService as CsvStringService;
-use Inkl\PlentyApi\Client\ClientInterface;
+use Inkl\PlentyAdmin\Client\AdminClient;
+use Swap\Exception\Exception;
 
 class DynamicExportService
 {
 
-	/** @var ClientInterface */
+	/** @var AdminClient */
 	private $client;
-	/** @var CsvStringService */
-	private $csvStringService;
 
 	/**
-	 * DynamicExportService constructor.
-	 * @param ClientInterface $client
-	 * @param CsvStringService $csvStringService
+	 * @param AdminClient $client
 	 */
-	public function __construct(ClientInterface $client, CsvStringService $csvStringService)
+	public function __construct(AdminClient $client)
 	{
 		$this->client = $client;
-		$this->csvStringService = $csvStringService;
 	}
 
-	public function exportFormat($formatId, $formatName, $offset = 0, $rowCount = 1000)
+	public function exportFormat($formatName, $offset = 0, $rowCount = 6000)
 	{
-		$result = $this->client->call('GetDynamicExport', [
-			'FormatID' => $formatId,
-			'FormatName' => $formatName,
-			'Offset' => $offset,
-			'RowCount' => $rowCount
-		]);
 
-		if (!isset($result->Success) || $result->Success != '1' || !isset($result->Content->item)) throw new \Exception('dynamic export failed');
+		$call = sprintf('admin/gui_call.php?Object=mod_export@GuiDynamicFieldExportView2&Params[gui]=AjaxExportData&gwt_tab_id=-1&presenter_id=&action=ExportDataFormat&formatDynamicUserName=%s&offset=%d&rowCount=%d', $formatName, $offset, $rowCount);
 
-		$content = '';
-		foreach ($result->Content->item as $item)
+		$response = $this->client->get($call);
+
+		if ($response->http_status_code !== 200)
 		{
-
-			if (!isset($item->Value)) continue;
-
-			$content .= (string)$item->Value . "\n";
+			throw new Exception(sprintf('invalid http code: %d', $response->http_status_code));
 		}
 
-		$items = $this->csvStringService->toArray($content, ';');
-		if (count($items) > 0)
+		$stream = fopen('php://memory', 'r+');
+		fwrite($stream, $response->response);
+		rewind($stream);
+
+		$items = [];
+		while ($item = fgetcsv($stream, 100000, ';'))
+		{
+			$items[] = $item;
+		}
+
+		if (count($items) > 1)
 		{
 			return $items;
 		}
+		print_r($items);
+		exit;
+
+		print_r($response->response);
+		exit;
+
+		echo $response->http_status_code;
+		exit;
+
+		print_r($response);
+
+		exit;
 
 		return null;
 	}
