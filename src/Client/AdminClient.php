@@ -6,15 +6,22 @@ use Curl\Curl;
 
 class AdminClient
 {
+	const MAX_RECONNECT_TRIES = 5;
+
+	private $reconnectTries = 0;
 
 	/** @var Curl */
 	private $curl;
 	private $cookieFile;
 	private $plentyUrl;
+	private $username;
+	private $password;
 
-	public function __construct($plentyUrl)
+	public function __construct($plentyUrl, $username, $password)
 	{
 		$this->plentyUrl = $plentyUrl;
+		$this->username = $username;
+		$this->password = $password;
 
 		$this->curl = new Curl();
 		$this->curl->setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Ubuntu Chromium/32.0.1700.107 Chrome/32.0.1700.107 Safari/537.36');
@@ -23,11 +30,11 @@ class AdminClient
 		$this->curl->setOpt(CURLOPT_COOKIEJAR, 'cookie');
 	}
 
-	public function auth($username, $password)
+	public function auth()
 	{
 		$this->curl->setOpt(CURLOPT_COOKIEFILE, $this->cookieFile);
 		$response = $this->curl->post(sprintf('%sapi/ui.php', $this->plentyUrl), [
-			'request' => sprintf('{"requests":[{"_dataName":"PlentyMarketsLogin", "_moduleName":"user/login", "_searchParams":{"username":"%s", "password":"%s", "isGWT":true}, "_writeParams":{}, "_validateParams":{}, "_commandStack":[{"type":"read", "command":"read"}], "_dataArray":{}, "_dataList":{}}], "meta":{"token":""}}', $username, $password)
+			'request' => sprintf('{"requests":[{"_dataName":"PlentyMarketsLogin", "_moduleName":"user/login", "_searchParams":{"username":"%s", "password":"%s", "isGWT":true}, "_writeParams":{}, "_validateParams":{}, "_commandStack":[{"type":"read", "command":"read"}], "_dataArray":{}, "_dataList":{}}], "meta":{"token":""}}', $this->username, $this->password)
 		]);
 
 		if (!preg_match('/Set-Cookie: SID_PLENTY_ADMIN/is', implode('', $response->response_headers)))
@@ -38,7 +45,23 @@ class AdminClient
 
 	public function get($call, $params = [])
 	{
-		return $this->curl->get(sprintf('%s%s', $this->plentyUrl, $call), $params);
+		$response = $this->curl->get(sprintf('%s%s', $this->plentyUrl, $call), $params);
+		if ($response->http_status_code !== 200)
+		{
+			if ($response->http_status_code == 302 && $this->reconnectTries < self::MAX_RECONNECT_TRIES)
+			{
+				sleep(1);
+				$this->reconnectTries++;
+
+				$this->auth();
+			}
+
+			throw new \Exception(sprintf('invalid http code: %d', $response->http_status_code));
+		}
+
+		$this->reconnectTries = 0;
+
+		return $response;
 	}
 
 	/**

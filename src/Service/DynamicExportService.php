@@ -4,7 +4,6 @@ namespace Inkl\PlentyAdmin\Service;
 
 use Inkl\PlentyAdmin\Client\AdminClient;
 use League\Csv\Reader;
-use Swap\Exception\Exception;
 
 class DynamicExportService
 {
@@ -25,11 +24,6 @@ class DynamicExportService
 		$call = sprintf('admin/gui_call.php?Object=mod_export@GuiDynamicFieldExportView2&Params[gui]=AjaxExportData&gwt_tab_id=-1&presenter_id=&action=ExportDataFormat&formatDynamicUserName=%s&offset=%d&rowCount=%d', $formatName, $offset, $rowCount);
 
 		$response = $this->client->get($call);
-
-		if ($response->http_status_code !== 200)
-		{
-			throw new Exception(sprintf('invalid http code: %d', $response->http_status_code));
-		}
 
 		$csvReader = Reader::createFromString($response->response);
 		$csvReader->setDelimiter(';');
