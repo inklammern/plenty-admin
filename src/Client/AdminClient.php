@@ -3,7 +3,6 @@
 namespace Inkl\PlentyAdmin\Client;
 
 use Curl\Curl;
-use Swap\Exception\Exception;
 
 class AdminClient
 {
@@ -24,7 +23,7 @@ class AdminClient
 		$this->curl->setOpt(CURLOPT_COOKIEJAR, 'cookie');
 	}
 
-	public function login($username, $password)
+	public function auth($username, $password)
 	{
 		$this->curl->setOpt(CURLOPT_COOKIEFILE, $this->cookieFile);
 		$response = $this->curl->post(sprintf('%sapi/ui.php', $this->plentyUrl), [
@@ -33,7 +32,7 @@ class AdminClient
 
 		if (!preg_match('/Set-Cookie: SID_PLENTY_ADMIN/is', implode('', $response->response_headers)))
 		{
-			throw new Exception('unable to login');
+			throw new \Exception('unable to login');
 		}
 	}
 
