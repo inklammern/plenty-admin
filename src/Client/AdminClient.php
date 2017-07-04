@@ -6,7 +6,7 @@ use Curl\Curl;
 
 class AdminClient
 {
-	const MAX_RECONNECT_TRIES = 5;
+	const MAX_RECONNECT_TRIES = 10;
 
 	private $reconnectTries = 0;
 
@@ -46,11 +46,11 @@ class AdminClient
 	public function get($call, $params = [])
 	{
 		$response = $this->curl->get(sprintf('%s%s', $this->plentyUrl, $call), $params);
-		if ($response->http_status_code !== 200)
+		if ($response->http_status_code != 200)
 		{
 			if ($response->http_status_code == 302 && $this->reconnectTries < self::MAX_RECONNECT_TRIES)
 			{
-				sleep(1);
+				sleep(3);
 				$this->reconnectTries++;
 
 				$this->auth();
