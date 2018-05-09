@@ -54,6 +54,8 @@ class AdminClient
 				$this->reconnectTries++;
 
 				$this->auth();
+
+				return $this->get($call, $params);
 			}
 
 			throw new \Exception(sprintf('invalid http code: %d', $response->http_status_code));
